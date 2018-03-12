@@ -1,0 +1,63 @@
+import discord
+
+class LoupGarous:
+
+	def __init__(self, bot):
+		self.bot = bot
+		self.games = []
+
+	def _only_digits(self, string):
+		_string = ""
+		for letter in string:
+			if letter.isdigit():
+				_string += letter
+		if len(_string) > 0:
+			return int(_string)
+		else:
+			return None
+			
+	def incorrect_syntax(self):
+		return '":x:   -   **Syntaxe incorrecte: **{}{} <salon 1> <salon 2>".format(ctx.prefix, str(ctx.command))'
+		
+	async def ctx_lg_join(self, ctx):
+		if ctx.guild.id in [x["main_channel"].guild.id for x in self.games]:
+			await ctx.reply("Patientez, cette commande n'est pas terminé...")
+		else:
+			return await ctx.reply(":x:   -   **Aucune partie n'est en cours sur ce serveur.**", nonce="LoupGarous.no_game_playing")
+	
+	async def ctx_lg_start(self, ctx, main_channel = None, second_channel = None):
+		if ctx.guild.id in [x[0] for x in self.games]:
+			return await ctx.reply(":x:   -   **Une partie est déjà en cours sur ce serveur.**", nonce="LoupGarous.already_game_playing")
+		if main_channel != None and second_channel != None:
+			GAME = dict()
+			_main_channel = self.bot.get_channel(self._only_digits(main_channel))
+			_second_channel = self.bot.get_channel(self._only_digits(second_channel))
+			if _main_channel != None and _second_channel != None:
+				GAME.update({
+					"main_channel": _main_channel,
+					"second_channel": _second_channel,
+					"players": []
+				})
+				if GAME["main_channel"].permissions_for(GAME["main_channel"].guild.me).manage_roles and GAME["second_channel"].permissions_for(GAME["second_channel"].guild.me).manage_roles:
+					everyone_overwrite = discord.PermissionOverwrite()
+					everyone_overwrite.read_messages = False
+					everyone_overwrite.read_message_history = True
+					overwrite = discord.PermissionOverwrite()
+					overwrite.read_messages = True
+					overwrite.embed_links = True
+					overwrite.manage_channels = True
+					overwrite.manage_roles = True
+					overwrite.mention_everyone = True
+					await GAME["main_channel"].set_permissions(GAME["main_channel"].guild.me, overwrite=overwrite, reason="Jeu LG lancé.")
+					await GAME["main_channel"].set_permissions(GAME["main_channel"].guild.default_role, overwrite=everyone_overwrite, reason="Jeu LG lancé.")
+					await GAME["second_channel"].set_permissions(GAME["second_channel"].guild.me, overwrite=overwrite, reason="Jeu LG lancé.")
+					await GAME["second_channel"].set_permissions(GAME["second_channel"].guild.default_role, overwrite=everyone_overwrite, reason="Jeu LG lancé.")
+				else:
+					return await ctx.reply(":x:   -   **Mes permissions sont insuffisantes sur ces salons.**", nonce="LoupGarous.insufficient_permissions")
+			else:
+				return await ctx.reply(eval(self.incorrect_syntax()), nonce="LoupGarous.incorrect_syntax")
+		else:
+			return await ctx.reply(eval(self.incorrect_syntax()), nonce="LoupGarous.incorrect_syntax")
+	
+def setup(bot):
+	bot.add_cog(LoupGarous(bot))

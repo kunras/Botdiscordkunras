@@ -1,0 +1,55 @@
+from commandsample import C
+from contextlib import redirect_stdout
+from io import StringIO
+import traceback, asyncio, textwrap
+
+class GetGuilds(C):
+	async def on_loaded(self):
+		class Table(dict):
+			pass
+		self.table = Table()
+		await asyncio.sleep(2)
+		while True:
+			try:
+				_Fonction = input(">>> ")
+				while 1:
+					abc = input("... ")
+					if abc in [""]:
+						break
+					_Fonction += "\n"+abc
+				Log_ = rep = Log_Func = Log = None
+				if not _Fonction in ["", None]:
+					env = {
+						"bot": self.bot,
+						"discord": self.discord,
+						"_": self.table
+					}
+					Fonction = 'async def l_l():\n{}'.format(textwrap.indent(_Fonction, "	"))
+					try:
+						exec(Fonction, env)
+					except Exception as E:
+						print(E.__class__.__name__+": "+E)
+					Log = StringIO()
+					try:
+						with redirect_stdout(Log):
+							Log_Func = await env["l_l"]()
+					except Exception as E:
+						print('{}{}'.format(Log.getvalue(), traceback.format_exc()))
+					else:
+						Log_ = Log.getvalue()
+						if Log_Func == None:
+							if Log_:
+								rep = Log_
+							else:
+								try: rep = repr(eval(_Fonction, env))
+								except: pass
+						else:
+							rep = '{}{}'.format(Log_, Log_Func)
+					
+					if rep != None:
+						print(rep)
+			except:
+				print("ERREUR")
+		
+def load(client):
+	client.add_command(GetGuilds(client))

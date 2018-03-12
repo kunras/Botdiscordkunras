@@ -1,0 +1,192 @@
+from commandsample import C
+from utils.answers import embed as E
+import requests, asyncio
+from discord import Webhook, RequestsWebhookAdapter
+
+# Ajouter le support des noms d'utilisateur
+
+
+class Welcomer(C):
+
+	async def on_loaded(self):
+		self.bot.sql("CREATE TABLE IF NOT EXISTS guilds (id INTEGER PRIMARY KEY NOT NULL UNIQUE)")
+		TablesExistantes = self.bot.sql("PRAGMA table_info(guilds)")
+		if not "Welcomer_webhooks" in [x[1] for x in TablesExistantes]:
+			self.bot.sql("ALTER TABLE guilds ADD Welcomer_webhooks TEXT DEFAULT '[]'")
+		if not "Welcomer_MsgAccueil" in [x[1] for x in TablesExistantes]:
+			self.bot.sql("ALTER TABLE guilds ADD Welcomer_MsgAccueil TEXT DEFAULT ''")
+		if not "Welcomer_MsgAdieux" in [x[1] for x in TablesExistantes]:
+			self.bot.sql("ALTER TABLE guilds ADD Welcomer_MsgAdieux TEXT DEFAULT ''")
+			
+	async def on_member_join(self, member):
+		guild = member.guild
+		ListeWelcomers = self.get_guild_welcomers(guild)
+		MessageContent = self.get_guild_msgaccueil(guild)
+		if MessageContent == None:
+			MessageContent = "Welcome to %_[user.mention] on this server!"
+		MessageContent = MessageContent.replace("%_[user]", str(member))
+		MessageContent = MessageContent.replace("%_[user.mention]", str(member.mention))
+		MessageContent = MessageContent.replace("%_[user.id]", str(member.id))
+		MessageContent = MessageContent.replace("%_[user.name]", str(member.name))
+		MessageContent = MessageContent.replace("%_[user.nick]", str(member.display_name))
+		MessageContent = MessageContent.replace("%_[user.nickname]", str(member.display_name))
+		MessageContent = MessageContent.replace("%_[guild]", str(guild))
+		MessageContent = MessageContent.replace("%_[guild.name]", str(guild.name))
+		for webhook_url in ListeWelcomers:
+			await asyncio.sleep(0)
+			webhook = Webhook.from_url(webhook_url, adapter=RequestsWebhookAdapter())
+			webhook.send(MessageContent)
+		
+	def get_guild_welcomers(self, guild):
+		ListeWelcomers = self.bot.sql("SELECT Welcomer_webhooks FROM guilds WHERE id = '%s'" %(guild.id))
+		if ListeWelcomers == None:
+			return []
+		else:
+			return eval(ListeWelcomers[0][0])
+		
+	def get_guild_msgaccueil(self, guild):
+		ListeWelcomers = self.bot.sql("SELECT Welcomer_MsgAccueil FROM guilds WHERE id = '%s'" %(guild.id))
+		if ListeWelcomers == None:
+			return None
+		else:
+			if ListeWelcomers[0][0] != "":
+				return ListeWelcomers[0][0]
+			return None
+		
+	def get_guild_msgadieux(self, guild):
+		ListeWelcomers = self.bot.sql("SELECT Welcomer_MsgAdieux FROM guilds WHERE id = '%s'" %(guild.id))
+		if ListeWelcomers == None:
+			return None
+		else:
+			if ListeWelcomers[0][0] != "":
+				return ListeWelcomers[0][0]
+			return None
+		
+	def set_guild_msgaccueil(self, guild, msg):
+		ListeWelcomers = self.bot.sql("SELECT Welcomer_MsgAccueil FROM guilds WHERE id = '%s'" %(guild.id))
+		if ListeWelcomers == None:
+			self.bot.sql("INSERT INTO guilds(id) VALUES ('%s')" %(guild.id))
+		self.bot.sql("UPDATE guilds SET Welcomer_MsgAccueil = ? WHERE id = ?", (str(msg), guild.id))
+		
+	def set_guild_msgadieux(self, guild, msg):
+		ListeWelcomers = self.bot.sql("SELECT Welcomer_MsgAdieux FROM guilds WHERE id = '%s'" %(guild.id))
+		if ListeWelcomers == None:
+			self.bot.sql("INSERT INTO guilds(id) VALUES ('%s')" %(guild.id))
+		self.bot.sql("UPDATE guilds SET Welcomer_MsgAdieux = ? WHERE id = ?", (str(msg), guild.id))
+			
+	def set_guild_welcomers(self, guild, list):
+		ListeWelcomers = self.bot.sql("SELECT Welcomer_webhooks FROM guilds WHERE id = '%s'" %(guild.id))
+		if ListeWelcomers == None:
+			self.bot.sql("INSERT INTO guilds(id) VALUES ('%s')" %(guild.id))
+		self.bot.sql("UPDATE guilds SET Welcomer_webhooks = ? WHERE id = ?", (str(list), guild.id))
+			
+	def add_guild_welcomers(self, guild, webhook):
+		ListeWelcomers = self.get_guild_welcomers(guild)
+		ListeWelcomers.append(webhook.url)
+		self.set_guild_welcomers(guild, ListeWelcomers)
+			
+	def del_guild_welcomers(self, guild, webhook):
+		ListeWelcomers = self.get_guild_welcomers(guild)
+		if webhook.url in ListeWelcomers:
+			ListeWelcomers.remove(webhook.url)
+			self.set_guild_welcomers(guild, ListeWelcomers)
+			return True
+		return False
+		
+	async def cmd_welcomer(self, message, *args):
+		"""Welcomer"""
+		async def IncorrectUsage_Message(message):
+			embed = E(message.author, ":x: **Incorrect usage!**\n```fix\nwelcomer <add/del/ls/msg_hi/msg_bye>\n```")
+			try:
+				await message.channel.send(None, embed=embed)
+			except:
+				await message.author.send(f":warning: I can't speak in {message.channel.mention}")
+				await message.author.send(None, embed=embed)
+		if len(args) == 0:
+			await IncorrectUsage_Message(message)
+		else:
+			AppelPossible = "subcmd_welcomer_"+args[0].lower()
+			if hasattr(__class__, AppelPossible):
+				self.bot.loop.create_task(getattr(__class__, AppelPossible)(self, message, args[1:]))
+			else:
+				await IncorrectUsage_Message(message)
+				
+	def get_channel(self, query, guild=None):
+		query_int_str = ""
+		for letter in query:
+			if letter.isdigit():
+				query_int_str += letter
+		if guild != None:
+			retour = guild.get_channel(int(query_int_str))
+		else:
+			retour = self.bot.get_channel(int(query_int_str))
+		return retour
+		
+	async def subcmd_welcomer_msg_hi(self, message, *args):
+		args = args[0]
+		if message.author.guild_permissions.manage_webhooks:
+			if len(args) > 0:
+				self.set_guild_msgaccueil(message.guild, " ".join(args[1:]))
+				await message.add_reaction("✅")
+			else:
+				await message.channel.send(None, embed=E(message.author, """:x: **Command usage:**
+``hpybot welcomer msg_hi <New_Message>``
+
+:information_source: **Available tags**:
+%\_[user]
+%\_[user.mention]
+%\_[user.id]
+%\_[user.name]
+%\_[user.nick]
+%\_[user.nickname]
+%\_[guild]
+%\_[guild.name]
+"""))
+		else:
+			await message.channel.send(None, embed=E(message.author, "You do not have the permission to use that command."))
+	
+	async def subcmd_welcomer_msg_bye(self, message, *args):
+		await message.channel.send("This command is unavailable for the moment.")
+				
+	async def subcmd_welcomer_add(self, message, *args):
+		channel = message.channel
+		args = args[0]
+		if len(args) > 0:
+			channel = self.get_channel(args[0], guild=message.guild)
+		if channel != None:
+			if channel.permissions_for(channel.guild.me).manage_webhooks:
+				if channel.permissions_for(message.author).manage_webhooks:
+					Webhook = await channel.create_webhook(name="HpyBOT", avatar=requests.get(self.bot.user.avatar_url_as(format="png", size=256)).content)
+					self.add_guild_welcomers(message.guild, Webhook)
+					await message.channel.send(None, embed=E(message.author, "You successfully added this channel."))
+				else:
+					await message.channel.send(None, embed=E(message.author, "You do not have the permission to use that command."))
+			else:
+				await message.channel.send(None, embed=E(message.author, "I do not have the following permission :\n``Manage webhooks``"))
+		else:
+			await message.author.send(None, embed=E(message.author, "Unknown channel."))
+			
+	async def subcmd_welcomer_del(self, message, *args):
+		await self.subcmd_welcomer_delete(message, *args)
+	async def subcmd_welcomer_delete(self, message, *args):
+		await message.channel.send("This command is unavailable for the moment.\nBtw you can always delete the webhook.")
+				
+	async def subcmd_welcomer_ls(self, message, *args):
+		await self.subcmd_welcomer_list(message, *args)
+	async def subcmd_welcomer_list(self, message, *args):
+		ListeWelcomers = self.get_guild_welcomers(message.guild)
+		ListeChannels = []
+		if message.author.guild_permissions.manage_webhooks:
+			for element in ListeWelcomers:
+				webhook_channel_id = requests.get(element).json().get("channel_id")
+				if webhook_channel_id != None:
+					webhook = Webhook.from_url(element, adapter=AsyncWebhookAdapter(session))
+					channel = self.get_channel(webhook_channel_id)
+					if channel != None:
+						ListeChannels.append(channel)
+			await message.channel.send(None, embed=E(message.author, "**There is the list:**\n{0}".format(", ".join([x.mention for x in ListeChannels]))))
+		else:
+			await message.channel.send(None, embed=E(message.author, "You do not have the permission to use that command."))
+			
+def load(client):
+	client.add_command(Welcomer(client))

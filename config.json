@@ -1,0 +1,9 @@
+{
+    "token": "TOKEN_ICI",
+	"selfbot": false,
+	"database": null,
+    "prefixs": [
+        "&&",
+		"$$"
+    ]
+}
