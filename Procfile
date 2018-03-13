@@ -1,1 +1,1 @@
-worker: hpybot
+worker: python manage.py
