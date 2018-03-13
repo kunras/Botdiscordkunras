@@ -297,4 +297,4 @@ print("""
 	The owner of this bot is Danny Hpy#9766. (215634007306534912)
 """)
 client = DiscordBot()
-client.run(configuration["process.env.TOKEN"], bot=not configuration["selfbot"])
+client.run(configuration["token"], bot=not configuration["selfbot"])
